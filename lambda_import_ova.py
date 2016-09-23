@@ -6,7 +6,6 @@ def lambda_handler(event, context):
 	s3_bucket = event[u'Records'][0][u's3'][u'bucket'][u'name']
 
 	import_vmdk = ec2_client.import_image(
-		DryRun=True,
 		Description='Lambda_VMIE',
 		DiskContainers=[
 			{
