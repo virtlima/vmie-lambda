@@ -47,7 +47,7 @@ def send_notification():
 	for items in ddb_tasks[u'Items']:
 		if items[u'JobStatus'] in ('completed', 'deleted', 'deleting'):
 			sns.publish(
-				TopicArn='arn:aws:sns:{}:{}:vmie_status'.format(items[u'AWSRegion'], items[u'AccountID']),
+				TopicArn='arn:aws:sns:{}:{}:vmie_status'.format(items[u'AWSRegion'], items[u'AccountId']),
 				Message='''VM import task with Task ID of {} has ended with status of:\n {} \n 
 				This task was importing the following object:\n {}.'''.format(items[u'ImportTaskId'], items[u'StatusMessage'], items[u'ObjectName']),
 				Subject='{} Ended'.format(items[u'ImportTaskId']),
