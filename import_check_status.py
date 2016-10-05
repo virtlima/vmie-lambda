@@ -5,6 +5,7 @@ def disable_check():
 	events.disable_rule(
 		Name = 'vmie_check_status'
 		)
+	print "Status Check Disabled"
 
 # Function  to Update Status of Each Import Task
 def update_status():
@@ -40,7 +41,7 @@ def update_status():
 			else:
 				print 'Nothing Matched'
 
-	send_notification() 
+	send_notification()
 
 # Function to Send Notification on Updates and deletes Key from DDB Table. 
 def send_notification():
@@ -57,6 +58,7 @@ def send_notification():
 				Key = {'ImportTaskId': items[u'ImportTaskId']
 				},
 			)
+			print "Notification Sent"
 	if ddb_task_list == []:
 		disable_check()
 
