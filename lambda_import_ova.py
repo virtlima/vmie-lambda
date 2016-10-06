@@ -18,7 +18,6 @@ def lambda_handler(event, context):
 
 	# Running Import Command against object from S3 Trigger
 	import_vmdk = ec2.import_image(
-		DryRun=True,
 		Description='Lambda_VMIE',
 		DiskContainers=[
 			{
