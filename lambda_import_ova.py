@@ -16,6 +16,12 @@ def lambda_handler(event, context):
 	s3_object = event[u'Records'][0][u's3'][u'object'][u'key']
 	s3_bucket = event[u'Records'][0][u's3'][u'bucket'][u'name']
 
+	# Enabling CloudWatch Event rule for Status Check
+	#enable_trigger = events.put_targets(
+	#	Rule = 'vmie_check_status',
+	#	Targets = )
+	#print 'Enabled Event'
+
 	# Running Import Command against object from S3 Trigger
 	import_vmdk = ec2.import_image(
 		Description='Lambda_VMIE',
@@ -42,10 +48,10 @@ def lambda_handler(event, context):
 	message = sns.publish(
 		TopicArn='arn:aws:sns:{}:{}:vmie_start'.format(region, account_id),
 		Message='''A VM import task with the Task ID of {} has been started in your Account.\n 
-		This task is importing the following VM: {}.\n 
-		When the job has ended you will be notified of status.'''.format(task_id, s3_object),
+This task is importing the following VM: {}.\n When the job has ended you will be notified of status.'''.format(task_id, s3_object),
 		Subject=task_id,
 		)
+	print 'Notification has been sent for {}.'.format(task_id)
 
 	# Post Status to DDB Table for tracking purposes
 	post_status = ddb.put_item(
@@ -55,14 +61,6 @@ def lambda_handler(event, context):
 			'JobStatus':{'S':status},
 			'StatusMessage':{'S':status_message},
 			'ObjectName':{'S':s3_object},
-			'AWSRegion':{'S':region},
-			'AccountID':{'S':account_id},
 			}
 		)
-
-	# Enabling CloudWatch Event rule for Status Check
-	enable_event = events.enable_rule(
-		Name = 'vmie_check_status'
-		)
-
-	return;
+	print 'DynamoDB Entry has been created to track {}.'.format(task_id)
