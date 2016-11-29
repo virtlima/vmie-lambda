@@ -1,0 +1,266 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description:
+ This is a Cloudformation that setups the permissions need for VM Import Export service. It also deploys a Lambda function that automates 
+ the import process, once an OVA is placed the S3 bucket the template creates. It reports back when the task is completed.
+
+Parameters:
+ TopicEmail: 
+   Default: your.address@here.com
+   Description: E-Mail address to subscribe to alerts
+   Type: String
+
+Resources:
+ VMImportRole:
+  Type: "AWS::IAM::Role"
+  Properties:
+   AssumeRolePolicyDocument:
+     Version: '2012-10-17'
+     Statement:
+     - Effect: Allow
+       Principal:
+         Service:
+         - vmie.amazonaws.com
+       Action:
+       - sts:AssumeRole
+       Condition:
+          StringEquals:
+              sts:ExternalId: "vmimport"
+   Path: "/"
+
+ VMImportRolePol:
+  Type: "AWS::IAM::Policy"
+  Properties:
+   PolicyName: "vmimport-role-pol"
+   PolicyDocument:
+     Version: "2012-10-17"
+     Statement:
+       -
+         Effect: "Allow"
+         Action:
+           - "s3:ListBucket"
+           - "s3:GetBucketLocation"
+         Resource: !Join [ "", ["arn:aws:s3:::" , Ref: "ImportExportS3Bucket"]]
+
+       -  
+         Effect: "Allow"
+         Action:
+           - "s3:GetObject"
+         Resource: !Join [ "", ["arn:aws:s3:::" , Ref: "ImportExportS3Bucket", "/*"]]
+
+       -  
+         Effect: "Allow"
+         Action:
+           - "ec2:ModifySnapshotAttribute"
+           - "ec2:CopySnapshot"
+           - "ec2:RegisterImage"
+           - "ec2:Describe"
+         Resource: "*"
+   Roles: 
+     -
+       Ref: "VMImportRole"
+
+ ImportExportS3Bucket:
+  Type: "AWS::S3::Bucket"
+  Properties:
+   NotificationConfiguration:
+     LambdaConfigurations:
+       - 
+         Event: "s3:ObjectCreated:*"
+         Filter:
+           S3Key: 
+             Rules: 
+               -
+                 Name: "Suffix"
+                 Value: "ova"
+         Function: !GetAtt ImportOva.Arn
+   AccessControl: "BucketOwnerFullControl"
+   Tags:
+    -
+      Key: "Name"
+      Value: !Join ["-", [Ref: "AWS::StackName", "s3", Ref: "AWS::Region"]]
+
+ VMIELambdaRole:
+  Type: "AWS::IAM::Role"
+  Properties:
+   AssumeRolePolicyDocument:
+     Version: '2012-10-17'
+     Statement:
+      - 
+       Effect: "Allow"
+       Principal:
+         Service:
+          - "lambda.amazonaws.com" 
+       Action:
+        - "sts:AssumeRole"
+   Path: "/"
+
+ VMIELambdaPol:
+  Type: "AWS::IAM::Policy"
+  Properties:
+   PolicyName: "ImportExportPolicy"
+   PolicyDocument:
+    Version: "2012-10-17"
+    Statement:
+      -
+        Effect: "Allow"
+        Action:
+          - "s3:ListAllMyBuckets"
+        Resource: "*"
+      -
+        Effect: "Allow"
+        Action:
+          - "s3:CreateBucket"
+          - "s3:DeleteBucket"
+          - "s3:DeleteObject"
+          - "s3:GetBucketLocation"
+          - "s3:GetObject"
+          - "s3:ListBucket"
+          - "s3:AbortMultipartUpload"
+          - "s3:ListMultipartUpload"
+          - "s3:ListBucketMultipartUploads"
+          - "s3:PutObject"
+        Resource: 
+          - !Join ["", ["arn:aws:s3:::", Ref: "ImportExportS3Bucket"]]
+          - !Join ["", ["arn:aws:s3:::", Ref: "ImportExportS3Bucket", "/*"]]
+      -  
+        Effect: "Allow"
+        Action:
+          - "ec2:CancelConversionTask"
+          - "ec2:CancelExportTask"
+          - "ec2:CreateImage"
+          - "ec2:CreateInstanceExportTask"
+          - "ec2:CreateTags"
+          - "ec2:DeleteTags"
+          - "ec2:DescribeConversionTasks"
+          - "ec2:DescribeExportTasks"
+          - "ec2:DescribeInstanceAttribute"
+          - "ec2:DescribeInstanceStatus"
+          - "ec2:DescribeInstances"
+          - "ec2:DescribeTags"
+          - "ec2:ImportInstance"
+          - "ec2:ImportVolume"
+          - "ec2:StartInstances"
+          - "ec2:StopInstances"
+          - "ec2:TerminateInstances"
+          - "ec2:ImportImage"
+          - "ec2:ImportSnapshot"
+          - "ec2:DescribeImportImageTasks"
+          - "ec2:DescribeImportSnapshotTasks"
+          - "ec2:CancelImportTask"
+        Resource: "*"
+      - 
+        Effect: "Allow"
+        Action: 
+          - "dynamodb:DeleteItem"
+          - "dynamodb:Scan"
+          - "dynamodb:UpdateItem"
+          - "dynamodb:PutItem"
+          - "dynamodb:Query"
+          - "dynamodb:GetItem"
+        Resource: "*"
+      - 
+        Effect: "Allow"
+        Action:
+          - "events:DisableRule"
+          - "events:EnableRule"
+          - "events:DescribeRule"
+        Resource: "*"
+   Roles:
+     - 
+       Ref: "VMIELambdaRole"
+
+ VmieStatusTable:
+  Type: "AWS::DynamoDB::Table"
+  Properties:
+   AttributeDefinitions:
+     -
+       AttributeName: "ImportTaskId"
+       AttributeType: "S"
+   KeySchema:
+     -
+       AttributeName: "ImportTaskId"
+       KeyType: "HASH"
+   ProvisionedThroughput:
+     ReadCapacityUnits: "5"
+     WriteCapacityUnits: "5"
+   TableName: vmie_status
+
+ VmieStartSns:
+  Type: "AWS::SNS::Topic"
+  Properties:
+    DisplayName: "VMIE Start"
+    TopicName: "vmie_start"
+    Subscription:
+      - 
+        Endpoint: !Ref TopicEmail
+        Protocol: "email"
+
+ VmieEndSns:
+  Type: "AWS::SNS::Topic"
+  Properties:
+    DisplayName: "VMIE Ended"
+    TopicName: "vmie_status"
+    Subscription:
+      - 
+        Endpoint: !Ref TopicEmail
+        Protocol: "email"
+
+ ImportOva:
+  Type: "AWS::Lambda::Function"
+  Properties:
+    Handler: "import_ova.lambda_handler"
+    Role: !GetAtt VMIELambdaRole.Arn
+    Code:
+      S3Bucket: "als3-code"
+      S3Key: "import_ova.zip"
+    Description: "Lambda Function that automatically imports OVA that is put in a S3 bucket"
+    Runtime: "python2.7"
+    Timeout: "60"
+
+ CheckImport:
+  Type: "AWS::Lambda::Function"
+  Properties:
+    Handler: "check_import_status.lambda_handler"
+    Role: !GetAtt VMIELambdaRole.Arn
+    Code:
+      S3Bucket: "als3-code"
+      S3Key: "check_import_status.zip"
+    Description: "Check VM Import status every 30 Minutes to report on completion"
+    Runtime: "python2.7"
+    Timeout: "60"
+
+ CheckImportRule:
+  Type: "AWS::Events::Rule"
+  Properties:
+    ScheduleExpression: "cron(0/30 * * * ? *)"
+    State: "DISABLED"
+    Targets:
+      - 
+        Arn:
+          Fn::GetAtt:
+            - "CheckImport"
+            - "Arn"
+        Id: "vmie_status_check"
+
+ PermissionForEventsToInvokeLambda: 
+  Type: "AWS::Lambda::Permission"
+  Properties: 
+    FunctionName: 
+      Ref: "CheckImport"
+    Action: "lambda:InvokeFunction"
+    Principal: "events.amazonaws.com"
+    SourceArn: 
+      Fn::GetAtt: 
+        - "CheckImportRule"
+        - "Arn"
+
+ PermissionForS3ToInvokeLambda:
+  Type: "AWS::Lambda::Permission"
+  Properties: 
+    FunctionName: 
+      Ref: "ImportOva"
+    Action: "lambda:InvokeFunction"
+    Principal: "s3.amazonaws.com"
+    SourceArn: !Join ["", ["arn:aws:s3:::", Ref: "ImportExportS3Bucket"]]
