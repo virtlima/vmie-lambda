@@ -56,7 +56,7 @@ Resources:
            - "ec2:ModifySnapshotAttribute"
            - "ec2:CopySnapshot"
            - "ec2:RegisterImage"
-           - "ec2:Describe"
+           - "ec2:Describe*"
          Resource: "*"
    Roles: 
      -
