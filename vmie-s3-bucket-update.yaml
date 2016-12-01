@@ -15,6 +15,7 @@ Resources:
  VMImportRole:
   Type: "AWS::IAM::Role"
   Properties:
+   RoleName: "vmimport"
    AssumeRolePolicyDocument:
      Version: '2012-10-17'
      Statement:
@@ -167,6 +168,16 @@ Resources:
           - "events:EnableRule"
           - "events:DescribeRule"
         Resource: "*"
+      - 
+        Effect: "Allow"
+        Action:
+          - "logs:*"
+        Resource: "arn:aws:logs:*:*:*"
+      - 
+        Effect: "Allow"
+        Action:
+          - "sns:Publish"
+        Resource: "*"
    Roles:
      - 
        Ref: "VMIELambdaRole"
@@ -234,6 +245,7 @@ Resources:
  CheckImportRule:
   Type: "AWS::Events::Rule"
   Properties:
+    Name: "vmie_status_check"
     ScheduleExpression: "cron(0/30 * * * ? *)"
     State: "DISABLED"
     Targets:
