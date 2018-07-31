@@ -2,13 +2,17 @@
 AWSTemplateFormatVersion: "2010-09-09"
 
 Description:
- This is a Cloudformation that setups the permissions need for VM Import Export service. It also deploys a Lambda function that automates 
- the import process, once an OVA is placed the S3 bucket the template creates. It reports back when the task is completed.
+ This is a Cloudformation that setups the permissions needed for VM Import Export service. It also deploys a Lambda function that automates 
+ the import process, once an OVA is placed in the S3 bucket import process kicks odd and reports back when the task is completed.
 
 Parameters:
  TopicEmail: 
    Default: your.address@here.com
    Description: E-Mail address to subscribe to alerts
+   Type: String
+ 
+ S3BucketName:
+   Description: S3 Bucket Name
    Type: String
 
 Resources:
@@ -64,12 +68,24 @@ Resources:
 
  ImportExportS3Bucket:
   Type: "AWS::S3::Bucket"
+  BucketName: !Ref S3BucketName
   Properties:
+   NotificationConfiguration:
+     LambdaConfigurations:
+       - 
+         Event: "s3:ObjectCreated:*"
+         Filter:
+           S3Key: 
+             Rules: 
+               -
+                 Name: "Suffix"
+                 Value: "ova"
+         Function: !GetAtt ImportOva.Arn
    AccessControl: "BucketOwnerFullControl"
    Tags:
-    -
-      Key: "Name"
-      Value: !Join ["-", [Ref: "AWS::StackName", "s3", Ref: "AWS::Region"]]
+    - 
+     Key: "Name"
+     Value: !Join ["-", [Ref: "AWS::StackName", "s3", Ref: "AWS::Region"]]
 
  VMIELambdaRole:
   Type: "AWS::IAM::Role"
